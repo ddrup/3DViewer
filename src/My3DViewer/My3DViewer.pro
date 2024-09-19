@@ -1,5 +1,6 @@
 QT       += core gui
-QT += opengl openglwidgets
+QT += opengl
+QT += openglwidgets
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -10,11 +11,8 @@ CONFIG += c++17
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
-    Backend/s21_affine_transformation.c \
-    Backend/s21_help_func.c \
-    Backend/s21_matrix.c \
-    Backend/s21_parse_obj_file.c \
-    Backend/s21_vector.c \
+    Backend/FileParserFacade.cc \
+    Controller/s21_controller.cc \
     gifmaker/dgif_lib.c \
     gifmaker/egif_lib.c \
     gifmaker/gif_err.c \
@@ -24,8 +22,10 @@ SOURCES += \
     gifmaker/qgifimage.cpp \
     gifmaker/quantize.c \
     main.cpp \
+    observer.cpp \
     viewer.cpp \
-    viewerwindow.cpp
+    viewerwindow.cpp \
+    Backend/s21_affine_transformation.cc
 
 HEADERS += \
     gifmaker/gif_hash.h \
@@ -34,9 +34,11 @@ HEADERS += \
     gifmaker/qgifglobal.h \
     gifmaker/qgifimage.h \
     gifmaker/qgifimage_p.h \
+    observer.h \
     viewer.h \
     viewerwindow.h \
-    Backend/s21_Viewer.h \
+    Controller/s21_controller.h \
+    Backend/FileParserFacade.h \
     Backend/s21_affine_transformation.h
 
 

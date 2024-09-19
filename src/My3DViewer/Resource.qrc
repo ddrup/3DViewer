@@ -1,6 +1,10 @@
 <RCC>
-    <qresource prefix="/new/prefix1">
-        <file>Gif.png</file>
-        <file>Screenshot.png</file>
+    <qresource>
+        <file alias="Gif.png">Picture/Gif.png</file>
+        <file alias="Screenshot.png">Picture/Screenshot.png</file>
+    </qresource>
+    <qresource>
+        <file alias="vshader.vsh">Shader/vshader.vsh</file>
+        <file alias="fshader.fsh">Shader/fshader.fsh</file>
     </qresource>
 </RCC>

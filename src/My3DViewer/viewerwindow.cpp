@@ -2,15 +2,7 @@
 
 #include "ui_viewerwindow.h"
 
-extern "C" {
-#include "Backend/s21_Viewer.h"
-#include "Backend/s21_affine_transformation.c"
-#include "Backend/s21_affine_transformation.h"
-#include "Backend/s21_help_func.c"
-#include "Backend/s21_matrix.c"
-#include "Backend/s21_parse_obj_file.c"
-#include "Backend/s21_vector.c"
-}
+using namespace s21;
 
 viewerwindow::viewerwindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::viewerwindow) {
@@ -28,19 +20,52 @@ viewerwindow::viewerwindow(QWidget *parent)
 }
 
 viewerwindow::~viewerwindow() {
-  if (object3D != NULL) {
-    for (int i = 0; i < object3D->p->amountPolyg; i++) {
-      free(object3D->p->polygons[i]->data);
-      free(object3D->p->polygons[i]);
-    }
-    if (object3D->v->coord->matrix) free(object3D->v->coord->matrix);
-    if (object3D->v->coord) free(object3D->v->coord);
-    if (object3D->p->polygons) free(object3D->p->polygons);
-    if (object3D->v) free(object3D->v);
-    if (object3D->p) free(object3D->p);
-    if (object3D) free(object3D);
-  }
+  ScaledMinus->detach(glWidget);
+  ScaledPlus->detach(glWidget);
+  OrthoViewButton->detach(glWidget);
+  FrustViewButton->detach(glWidget);
+  colorButton->detach(glWidget);
+  colorEdgeButton->detach(glWidget);
+  colorVertexButton->detach(glWidget);
   saveSettings();
+
+  delete settings;
+  delete topToolBar;
+  delete glWidget;
+  delete stackedWidget;
+  delete dockWidget;
+  delete pushButton;
+  delete pushButtonRotate;
+  delete plainTextEdit;
+  delete openFile;
+  delete saveFile;
+  delete openGlWidget;
+  delete openTextEdit;
+  // delete fileMenu;
+  delete xRotate;
+  delete yRotate;
+  delete zRotate;
+  delete xTranslated;
+  delete yTranslated;
+  delete zTranslated;
+  delete ScaledMinus;
+  delete ScaledPlus;
+  delete Screenshot;
+  delete Gif;
+  delete thisFile;
+  delete thisVertices;
+  delete thisEdges;
+  delete OrthoViewButton;
+  delete FrustViewButton;
+  delete colorButton;
+  delete colorEdgeButton;
+  delete colorVertexButton;
+  delete thickness;
+  delete typeEdgeComboBox;
+  delete setChanges;
+  delete sizeVertex;
+  delete MethodDisplayVertexComboBox;
+
   delete ui;
 }
 
@@ -50,11 +75,9 @@ void viewerwindow::elementsPrograms() {
   openFile->setStatusTip(tr("Открыть файл"));
   connect(openFile, SIGNAL(triggered(bool)), this, SLOT(s21_openFileDialog()));
 
-  stackedWidget = new QStackedWidget(this);
+  stackedWidget = new QStackedWidget(this);  // create OpenGL widgets
   glWidget = new Viewer(this);
-  plainTextEdit = new QPlainTextEdit(this);
   stackedWidget->addWidget(glWidget);
-  stackedWidget->addWidget(plainTextEdit);
   stackedWidget->setCurrentWidget(glWidget);
 
   topToolBar = new QToolBar(tr("&toBar"));
@@ -62,9 +85,10 @@ void viewerwindow::elementsPrograms() {
   topToolBar->setAllowedAreas(Qt::TopToolBarArea);
   topToolBar->addAction(openFile);
   topToolBar->addSeparator();
+  topToolBar->setStyleSheet("background-color: #303134;");
 
   QFrame *frame = new QFrame(this);  // создание правой панели
-  frame->setGeometry(1200, 24, 300, 1000);
+  frame->setGeometry(1200, 33, 300, 1000);
   frame->setStyleSheet("background-color: #303134;");
   QVBoxLayout *layout = new QVBoxLayout(this);
 
@@ -87,24 +111,24 @@ void viewerwindow::elementsPrograms() {
   layout->addWidget(zRotate);
 
   xTranslated = new QSlider(Qt::Horizontal, this);  // Slider X transl
-  xTranslated->setRange(-50, 50);
+  xTranslated->setRange(-300, 300);
   xTranslated->setValue(0);
   xTranslated->setGeometry(1240, 220, 200, 30);
   layout->addWidget(xTranslated);
 
   yTranslated = new QSlider(Qt::Horizontal, this);  // Slider Y transl
-  yTranslated->setRange(-50, 50);
+  yTranslated->setRange(-300, 300);
   yTranslated->setValue(0);
   yTranslated->setGeometry(1240, 250, 200, 30);
   layout->addWidget(yTranslated);
 
   zTranslated = new QSlider(Qt::Horizontal, this);  // Slider Z transl
-  zTranslated->setRange(-50, 50);
+  zTranslated->setRange(-300, 300);
   zTranslated->setValue(0);
   zTranslated->setGeometry(1240, 280, 200, 30);
   layout->addWidget(zTranslated);
 
-  ScaledPlus = new QPushButton("+", this);  // pushbuttn Scaled
+  ScaledPlus = new QCustomPushButton("+", this);  // pushbuttn Scaled
   ScaledPlus->setGeometry(1120, 400, 50, 50);
   ScaledPlus->setStyleSheet(
       "QPushButton {"
@@ -115,8 +139,9 @@ void viewerwindow::elementsPrograms() {
       "QPushButton:hover {"
       "    background-color: #252427;"
       "}");
+  ScaledPlus->attach(glWidget);
 
-  ScaledMinus = new QPushButton("-", this);
+  ScaledMinus = new QCustomPushButton("-", this);
   ScaledMinus->setGeometry(1120, 560, 50, 50);
   ScaledMinus->setStyleSheet(
       "QPushButton {"
@@ -127,6 +152,7 @@ void viewerwindow::elementsPrograms() {
       "QPushButton:hover {"
       "    background-color: #252427;"
       "}");
+  ScaledMinus->attach(glWidget);
 
   Screenshot = new QPushButton("", this);  // pushbutton screenshot
   Screenshot->setGeometry(1160, 900, 30, 30);
@@ -138,7 +164,7 @@ void viewerwindow::elementsPrograms() {
       "}"
       "QPushButton:hover {"
       "}");
-  QPixmap pixmap1(":/new/prefix1/Screenshot.png");
+  QPixmap pixmap1(":/Screenshot.png");
   Screenshot->setIcon(QIcon(pixmap1));
   Screenshot->setIconSize(QSize(25, 25));
 
@@ -154,7 +180,7 @@ void viewerwindow::elementsPrograms() {
       "}"
       "QPushButton:hover {"
       "}");
-  QPixmap pixmap2(":/new/prefix1/Gif.png");
+  QPixmap pixmap2(":/Gif.png");
   Gif->setIcon(QIcon(pixmap2));
   Gif->setIconSize(QSize(20, 20));
 
@@ -233,15 +259,16 @@ void viewerwindow::elementsPrograms() {
   line2->setStyleSheet("background-color: grey;");
 
   QLabel *name_file = new QLabel("Name File: ", this);  // Label Name File
-  name_file->setGeometry(1215, 900, 85, 30);
   labelFont = name_file->font();
   labelFont.setPointSize(16);
   name_file->setFont(labelFont);
   name_file->setStyleSheet("QLabel { color: grey;}");
+  name_file->adjustSize();
+  name_file->move(1215, 900);
   layout->addWidget(name_file);
 
   thisFile = new QLabel("", this);  // Label thisFile
-  thisFile->setGeometry(1300, 900, 200, 30);
+  thisFile->setGeometry(1215 + name_file->width(), 900, 200, 30);
   labelFont = thisFile->font();
   labelFont.setPointSize(16);
   thisFile->setFont(labelFont);
@@ -250,15 +277,16 @@ void viewerwindow::elementsPrograms() {
 
   QLabel *count_vertices =
       new QLabel("Vertices: ", this);  // Label Count Vertices
-  count_vertices->setGeometry(1215, 930, 60, 30);
   labelFont = count_vertices->font();
   labelFont.setPointSize(16);
   count_vertices->setFont(labelFont);
   count_vertices->setStyleSheet("QLabel { color: grey;}");
+  count_vertices->adjustSize();
+  count_vertices->move(1215, 930);
   layout->addWidget(count_vertices);
 
   thisVertices = new QLabel("", this);  // Label thisVertices
-  thisVertices->setGeometry(1285, 930, 200, 30);
+  thisVertices->setGeometry(1215 + count_vertices->width(), 930, 200, 30);
   labelFont = thisVertices->font();
   labelFont.setPointSize(16);
   thisVertices->setFont(labelFont);
@@ -266,15 +294,16 @@ void viewerwindow::elementsPrograms() {
   layout->addWidget(thisVertices);
 
   QLabel *count_edges = new QLabel("Edges: ", this);  // Label Count Edges
-  count_edges->setGeometry(1215, 960, 50, 30);
   labelFont = count_edges->font();
   labelFont.setPointSize(16);
   count_edges->setFont(labelFont);
   count_edges->setStyleSheet("QLabel { color: grey;}");
+  count_edges->adjustSize();
+  count_edges->move(1215, 960);
   layout->addWidget(count_edges);
 
   thisEdges = new QLabel("", this);  // Label Count Edges
-  thisEdges->setGeometry(1270, 960, 200, 30);
+  thisEdges->setGeometry(1215 + count_edges->width(), 960, 200, 30);
   labelFont = thisEdges->font();
   labelFont.setPointSize(16);
   thisEdges->setFont(labelFont);
@@ -290,7 +319,7 @@ void viewerwindow::elementsPrograms() {
   typeProjectionLabel->setStyleSheet("QLabel { color: grey;}");
   layout->addWidget(typeProjectionLabel);
 
-  OrthoViewButton = new QPushButton("Parallel", this);
+  OrthoViewButton = new QCustomPushButton("Parallel", this);
   OrthoViewButton->setGeometry(1203, 350, 140, 50);
   OrthoViewButton->setStyleSheet(
       "QPushButton {"
@@ -298,7 +327,9 @@ void viewerwindow::elementsPrograms() {
       "    color: #a0a39e;"
       "    background-color: #252427;"
       "}");
-  FrustViewButton = new QPushButton("Central", this);
+  OrthoViewButton->attach(glWidget);
+
+  FrustViewButton = new QCustomPushButton("Central", this);
   FrustViewButton->setGeometry(1347, 350, 150, 50);
   FrustViewButton->setStyleSheet(
       "QPushButton {"
@@ -306,19 +337,22 @@ void viewerwindow::elementsPrograms() {
       "    color: #a0a39e;"
       "    background-color: #616360;"
       "}");
+  FrustViewButton->attach(glWidget);
 
   QLabel *backGroundColor =
       new QLabel("Background-color: ", this);  // Label Background-color
-  backGroundColor->setGeometry(1210, 420, 160, 30);
   labelFont = backGroundColor->font();
   labelFont.setPointSize(20);
   backGroundColor->setFont(labelFont);
   backGroundColor->setStyleSheet("QLabel { color: grey;}");
+  backGroundColor->adjustSize();
+  backGroundColor->move(1210, 420);
   layout->addWidget(backGroundColor);
 
-  colorButton = new QPushButton("", this);
-  colorButton->setGeometry(1370, 415, 35, 40);
+  colorButton = new QCustomPushButton("", this);
+  colorButton->setGeometry(1215 + backGroundColor->width(), 415, 35, 40);
   colorButton->setStyleSheet("QPushButton { color: grey;}");
+  colorButton->attach(glWidget);
   QObject::connect(colorButton, &QPushButton::clicked, [&]() {
     color = QColorDialog::getColor();
     if (color.isValid()) {
@@ -327,7 +361,7 @@ void viewerwindow::elementsPrograms() {
       glWidget->blue = color.blue() / 255.0f;
       colorButton->setStyleSheet(
           "QPushButton { background-color: " + color.name() + ";}");
-      update();
+      colorButton->notify();
     }
   });
   layout->addWidget(colorButton);
@@ -356,15 +390,16 @@ void viewerwindow::elementsPrograms() {
   layout1->addWidget(labelEdge);
 
   QLabel *typeEdge = new QLabel("Type: ", this);  // Label Type Edge
-  typeEdge->setGeometry(1220, 520, 40, 30);
   labelFont = typeEdge->font();
   labelFont.setPointSize(16);
   typeEdge->setFont(labelFont);
   typeEdge->setStyleSheet("QLabel { color: grey;}");
+  typeEdge->adjustSize();
+  typeEdge->move(1220, 520);
   layout1->addWidget(typeEdge);
 
   typeEdgeComboBox = new QComboBox(this);
-  typeEdgeComboBox->setGeometry(1260, 520, 100, 30);
+  typeEdgeComboBox->setGeometry(1220 + typeEdge->width(), 520, 100, 30);
   typeEdgeComboBox->setStyleSheet(
       "QComboBox {"
       "border: 1px solid gray;"
@@ -380,47 +415,49 @@ void viewerwindow::elementsPrograms() {
           SLOT(s21_typeEdge()));
 
   QLabel *colorEdge = new QLabel("Color: ", this);  // Label Color Edge
-  colorEdge->setGeometry(1220, 570, 50, 30);
   labelFont = colorEdge->font();
   labelFont.setPointSize(16);
   colorEdge->setFont(labelFont);
   colorEdge->setStyleSheet("QLabel { color: grey;}");
+  colorEdge->adjustSize();
+  colorEdge->move(1220, 570);
   layout1->addWidget(colorEdge);
 
-  colorEdgeButton = new QPushButton("", this);
-  colorEdgeButton->setGeometry(1270, 565, 35, 40);
+  colorEdgeButton = new QCustomPushButton("", this);
+  colorEdgeButton->setGeometry(1220 + colorEdge->width(), 565, 35, 40);
   colorEdgeButton->setStyleSheet("QPushButton { color: grey;}");
+  colorEdgeButton->attach(glWidget);
   QObject::connect(colorEdgeButton, &QPushButton::clicked, [&]() {
-    QColor color1 = QColorDialog::getColor();
-    if (color1.isValid()) {
-      glWidget->redEdge = color1.red() / 255.0f;
-      glWidget->greenEdge = color1.green() / 255.0f;
-      glWidget->blueEdge = color1.blue() / 255.0f;
+    QColor color = QColorDialog::getColor();
+    if (color.isValid()) {
+      glWidget->redEdge = color.red() / 255.0f;
+      glWidget->greenEdge = color.green() / 255.0f;
+      glWidget->blueEdge = color.blue() / 255.0f;
       colorEdgeButton->setStyleSheet(
-          "QPushButton { background-color: " + color1.name() + ";}");
+          "QPushButton { background-color: " + color.name() + ";}");
     }
-    glWidget->update();
+    colorEdgeButton->notify();
   });
   layout1->addWidget(colorEdgeButton);
 
   QLabel *thicknessEdge =
       new QLabel("Thickness: ", this);  // Label Thickness Edge
-  thicknessEdge->setGeometry(1220, 620, 80, 30);
   labelFont = thicknessEdge->font();
   labelFont.setPointSize(16);
   thicknessEdge->setFont(labelFont);
   thicknessEdge->setStyleSheet("QLabel { color: grey;}");
+  thicknessEdge->adjustSize();
+  thicknessEdge->move(1220, 620);
   layout1->addWidget(thicknessEdge);
 
-  thickness = new QTextEdit(this);
-  thickness->setGeometry(1297, 624, 180, 30);
+  thickness = new QLineEdit(this);
+  thickness->setGeometry(1220 + thicknessEdge->width(), 620, 180, 30);
   thickness->setStyleSheet(
-      "QTextEdit { background-color: #25272b}"
-      "QTextEdit { border-style: none}"
-      "QTextEdit { color: grey}");
-
-  connect(thickness, SIGNAL(textChanged()), this,
-          SLOT(s21_textEditTextChanged()));
+      "QLineEdit { background-color: #25272b;}"
+      "QLineEdit { border: none;}"
+      "QLineEdit { color: grey}");
+  connect(thickness, &QLineEdit::textChanged, this,
+          &viewerwindow::s21_textEditTextChanged);
 
   QFrame *frameVertex = new QFrame(this);  // create panel for Vertex
   frameVertex->setGeometry(1210, 680, 280, 200);
@@ -439,23 +476,24 @@ void viewerwindow::elementsPrograms() {
 
   QLabel *typeDisplayMethod =
       new QLabel("Display method: ", this);  // Label Display Method Vertex
-  typeDisplayMethod->setGeometry(1220, 730, 120, 30);
   labelFont = typeDisplayMethod->font();
   labelFont.setPointSize(16);
   typeDisplayMethod->setFont(labelFont);
   typeDisplayMethod->setStyleSheet("QLabel { color: grey;}");
+  typeDisplayMethod->adjustSize();
+  typeDisplayMethod->move(1220, 730);
   layout2->addWidget(typeDisplayMethod);
 
   MethodDisplayVertexComboBox =
       new QComboBox(this);  // ComboBox for Dispaly Method
-  MethodDisplayVertexComboBox->setGeometry(1340, 730, 100, 30);
+  MethodDisplayVertexComboBox->setGeometry(1220 + typeDisplayMethod->width(),
+                                           730, 100, 30);
   MethodDisplayVertexComboBox->setStyleSheet(
       "QComboBox {"
       "border: 1px solid gray;"
       "color: white;"
       "border-radius: 3px;"
       "padding: 1px 18px 1px 3px;"
-      "min-width: 6em;"
       "selection-background-color: #25272b;"
       "background: #25272b;}");
   MethodDisplayVertexComboBox->addItem("None");
@@ -465,17 +503,19 @@ void viewerwindow::elementsPrograms() {
           SLOT(s21_typeVertex()));
 
   QLabel *colorVertex = new QLabel("Color: ", this);  // Label Color Vertex
-  colorVertex->setGeometry(1220, 780, 80, 30);
   labelFont = colorVertex->font();
   labelFont.setPointSize(16);
   colorVertex->setFont(labelFont);
   colorVertex->setStyleSheet("QLabel { color: grey;}");
+  colorVertex->adjustSize();
+  colorVertex->move(1220, 780);
   layout2->addWidget(colorVertex);
 
   colorVertexButton =
-      new QPushButton("", this);  // PushButton for change color button
-  colorVertexButton->setGeometry(1270, 775, 35, 40);
+      new QCustomPushButton("", this);  // PushButton for change color button
+  colorVertexButton->setGeometry(1220 + colorVertex->width(), 775, 35, 40);
   colorVertexButton->setStyleSheet("QPushButton { color: grey;}");
+  colorVertexButton->attach(glWidget);
   QObject::connect(colorVertexButton, &QPushButton::clicked, [&]() {
     QColor color1 = QColorDialog::getColor();
     if (color1.isValid()) {
@@ -484,21 +524,22 @@ void viewerwindow::elementsPrograms() {
       glWidget->blueVertex = color1.blue() / 255.0f;
       colorVertexButton->setStyleSheet(
           "QPushButton { background-color: " + color1.name() + ";}");
-      glWidget->update();
+      colorVertexButton->notify();
     }
   });
   layout2->addWidget(colorVertexButton);
 
   QLabel *typeVertex = new QLabel("Size: ", this);  // Label Size Vertex
-  typeVertex->setGeometry(1220, 830, 35, 30);
   labelFont = typeVertex->font();
   labelFont.setPointSize(16);
   typeVertex->setFont(labelFont);
   typeVertex->setStyleSheet("QLabel { color: grey;}");
+  typeVertex->adjustSize();
+  typeVertex->move(1220, 830);
   layout2->addWidget(typeVertex);
 
   sizeVertex = new QTextEdit(this);
-  sizeVertex->setGeometry(1255, 834, 180, 30);
+  sizeVertex->setGeometry(1220 + typeVertex->width(), 830, 180, 30);
   sizeVertex->setStyleSheet(
       "QTextEdit { background-color: #25272b}"
       "QTextEdit { border-style: none}"
@@ -544,10 +585,10 @@ QString viewerwindow::ParsingFileName(QString fileName) {
 
 void viewerwindow::s21_RotateX(int newValue) {
   if (fileIsOpen == 1) {
-    if (!object3D) return;
-    s21_glRotate(object3D->v->coord, (newValue - xLastValueRotated), X);
-    glWidget->s21_setObject3D(object3D);
-    glWidget->s21_setPoligon(object3D);
+    glWidget->angleRotate = newValue;
+    glWidget->xRotate = 1.0f;
+    glWidget->yRotate = 0.0f;
+    glWidget->zRotate = 0.0f;
     glWidget->update();
     xLastValueRotated = newValue;
   }
@@ -555,33 +596,29 @@ void viewerwindow::s21_RotateX(int newValue) {
 
 void viewerwindow::s21_RotateY(int newValue) {
   if (fileIsOpen == 1) {
-    if (!object3D) return;
-    s21_glRotate(object3D->v->coord, (newValue - yLastValueRotated), Y);
-    glWidget->s21_setObject3D(object3D);
-    glWidget->s21_setPoligon(object3D);
+    glWidget->angleRotate = newValue;
+    glWidget->xRotate = 0.0f;
+    glWidget->yRotate = 1.0f;
+    glWidget->zRotate = 0.0f;
     glWidget->update();
-    yLastValueRotated = newValue;
+    xLastValueRotated = newValue;
   }
 }
 
 void viewerwindow::s21_RotateZ(int newValue) {
   if (fileIsOpen == 1) {
-    if (!object3D) return;
-    s21_glRotate(object3D->v->coord, (newValue - zLastValueRotated), Z);
-    glWidget->s21_setObject3D(object3D);
-    glWidget->s21_setPoligon(object3D);
+    glWidget->angleRotate = newValue;
+    glWidget->xRotate = 0.0f;
+    glWidget->yRotate = 0.0f;
+    glWidget->zRotate = 1.0f;
     glWidget->update();
-    zLastValueRotated = newValue;
+    xLastValueRotated = newValue;
   }
 }
 
 void viewerwindow::s21_TranslatedX(int newValue) {
   if (fileIsOpen == 1) {
-    if (!object3D) return;
-    s21_glTranslated(object3D->v->coord,
-                     (newValue - xLastValueTranslated) * 0.05, X);
-    glWidget->s21_setObject3D(object3D);
-    glWidget->s21_setPoligon(object3D);
+    glWidget->xTranslate = newValue;
     glWidget->update();
     xLastValueTranslated = newValue;
   }
@@ -589,54 +626,32 @@ void viewerwindow::s21_TranslatedX(int newValue) {
 
 void viewerwindow::s21_TranslatedY(int newValue) {
   if (fileIsOpen == 1) {
-    if (!object3D) return;
-    s21_glTranslated(object3D->v->coord,
-                     (newValue - yLastValueTranslated) * 0.05, Y);
-    glWidget->s21_setObject3D(object3D);
-    glWidget->s21_setPoligon(object3D);
+    glWidget->yTranslate = newValue;
     glWidget->update();
-    yLastValueTranslated = newValue;
+    xLastValueTranslated = newValue;
   }
 }
 
 void viewerwindow::s21_TranslatedZ(int newValue) {
   if (fileIsOpen == 1) {
-    if (!object3D) return;
-    if (glWidget->typeProjection == 0)
-      s21_glTranslated(object3D->v->coord,
-                       (newValue - zLastValueTranslated) * 0.05, Z);
-    else
-      s21_glTranslated(object3D->v->coord,
-                       (newValue - zLastValueTranslated) * 0.1, Z);
-    glWidget->s21_setObject3D(object3D);
-    glWidget->s21_setPoligon(object3D);
+    glWidget->zTranslate = newValue;
     glWidget->update();
-    zLastValueTranslated = newValue;
+    xLastValueTranslated = newValue;
   }
 }
 
 void viewerwindow::s21_ScaledPlus() {
   if (fileIsOpen == 1) {
-    if (!object3D) return;
-    lastScaled = ratio;
-    ratio += 0.1;
-    s21_glScaled(object3D->v->coord, ratio, lastScaled);
-    glWidget->s21_setPoligon(object3D);
-    glWidget->s21_setObject3D(object3D);
-    glWidget->update();
+    glWidget->allScale += 0.1;
+    ScaledPlus->notify();
   }
 }
 
 void viewerwindow::s21_ScaledMinus() {
   if (fileIsOpen == 1) {
-    if (!object3D) return;
-    if (ratio > 0.1) {
-      lastScaled = ratio;
-      ratio -= 0.1;
-      s21_glScaled(object3D->v->coord, ratio, lastScaled);
-      glWidget->s21_setPoligon(object3D);
-      glWidget->s21_setObject3D(object3D);
-      glWidget->update();
+    if (glWidget->allScale > 0.1) {
+      glWidget->allScale -= 0.1;
+      ScaledMinus->notify();
     }
   }
 }
@@ -656,10 +671,7 @@ void viewerwindow::s21_OrthoView() {
         "    color: #a0a39e;"
         "    background-color: #616360;"
         "}");
-    glWidget->s21_setBorders(object3D);
-    glWidget->s21_setPoligon(object3D);
-    glWidget->s21_setObject3D(object3D);
-    glWidget->update();
+    OrthoViewButton->notify();
   }
 }
 
@@ -678,16 +690,13 @@ void viewerwindow::s21_FrustView() {
         "    color: #a0a39e;"
         "    background-color: #616360;"
         "}");
-    glWidget->s21_setBorders(object3D);
-    glWidget->s21_setPoligon(object3D);
-    glWidget->s21_setObject3D(object3D);
-    glWidget->update();
+    FrustViewButton->notify();
   }
 }
 
 void viewerwindow::s21_textEditTextChanged() {
   if (fileIsOpen == 1) {
-    QString currentText = thickness->toPlainText();
+    QString currentText = thickness->text();
     int flag = 0;
     for (int i = 0; i < currentText.size(); i++) {
       if ((currentText[i] < '0' || currentText[i] > '9') &&
@@ -708,9 +717,9 @@ void viewerwindow::s21_textEditTextChanged() {
 void viewerwindow::s21_typeEdge() {
   if (fileIsOpen == 1) {
     if (typeEdgeComboBox->currentText() == "Solid") {
-      glWidget->typeEdge = 0;
+      glWidget->typeEdge = 0.0f;
     } else {
-      glWidget->typeEdge = 1;
+      glWidget->typeEdge = 3.0f;
     }
     glWidget->update();
   }
@@ -773,14 +782,15 @@ void viewerwindow::refreshValue() {
   glWidget->greenVertex = 1;
   glWidget->blueVertex = 1;
 
-  xLastValueRotated = 0;
-  yLastValueRotated = 0;
-  zLastValueRotated = 0;
-  xLastValueTranslated = 0;
-  yLastValueTranslated = 0;
-  zLastValueTranslated = 0;
-  ratio = 1;
-  lastScaled = 1;
+  glWidget->angleRotate = 0.0f;
+  glWidget->xRotate = 0.0f;
+  glWidget->yRotate = 0.0f;
+  glWidget->zRotate = 0.0f;
+  glWidget->xTranslate = 0.0f;
+  glWidget->yTranslate = 0.0f;
+  glWidget->zTranslate = 0.0f;
+  glWidget->allScale = 0.5f;
+
   glWidget->red = 32.0f / 255.0f;
   glWidget->green = 33.0f / 255.0f;
   glWidget->blue = 36.0f / 255.0f;
@@ -792,20 +802,6 @@ void viewerwindow::refreshValue() {
 }
 
 void viewerwindow::s21_openFileDialog() {
-  if (FileFirstTimeIsOpen == 1) {
-    if (object3D != NULL) {
-      for (int i = 0; i < object3D->p->amountPolyg; i++) {
-        free(object3D->p->polygons[i]->data);
-        free(object3D->p->polygons[i]);
-      }
-      free(object3D->v->coord->matrix);
-      free(object3D->v->coord);
-      free(object3D->p->polygons);
-      free(object3D->v);
-      free(object3D->p);
-      free(object3D);
-    }
-  }
   fileIsOpen = 0;
   glWidget->fileIsOpen = 0;
   QString fileName =
@@ -818,59 +814,27 @@ void viewerwindow::s21_openFileDialog() {
 }
 
 void viewerwindow::s21_openFile(QString fileName) {
+  std::unique_ptr<Controller> currentController;
+  try {
+    currentController = std::make_unique<Controller>(fileName.toStdString());
+  } catch (const std::invalid_argument &e) {
+    qDebug() << "File is not correct";
+  }
+  qDebug() << currentController->getVertexes().size();
+  controller_ = std::move(currentController);
   if (FileFirstTimeIsOpen == 1) refreshValue();
-  QFile file(fileName);
-  if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-    qDebug() << "Не удалось открыть файл " << fileName;
-  } else {
-    fileSave = fileName;
-    object3D = (s21_Object3D *)calloc(1, sizeof(s21_Object3D));
-    object3D->v = (s21_Vertex *)calloc(1, sizeof(s21_Vertex));
-    object3D->p = (s21_Polygons *)calloc(1, sizeof(s21_Polygons));
-    object3D->v->coord =
-        (s21_MatrixPoints *)calloc(1, sizeof(s21_MatrixPoints));
-
-    QTextStream in(&file);
-    while (!in.atEnd()) {
-      QString line = in.readLine();
-      s21_help(line, object3D);
-    }
-    fileIsOpen = 1;
-    glWidget->fileIsOpen = 1;
-    s21_centerVertex(object3D->v);
-    glWidget->left = object3D->v->minMaxX[0];
-    glWidget->right = object3D->v->minMaxX[1];
-    glWidget->bottom = object3D->v->minMaxY[0];
-    glWidget->top = object3D->v->minMaxY[1];
-    glWidget->near = object3D->v->minMaxZ[0];
-    glWidget->far = object3D->v->minMaxZ[1];
-    glWidget->s21_setPoligon(object3D);
-    glWidget->s21_setObject3D(object3D);
-
-    glWidget->update();
-    thisFile->setText(ParsingFileName(fileName));
-    thisVertices->setText(QString::number(object3D->v->amountVert));
-    thisEdges->setText(QString::number(object3D->p->amountPolyg));
-    if (FileFirstTimeIsOpen == 1) refreshValue();
-    FileFirstTimeIsOpen = 1;
-    file.close();
-  }
-}
-
-void viewerwindow::s21_convertQStringToCharPointer(QString str, char *array) {
-  QByteArray byteArray = str.toUtf8();
-  const char *charArray = byteArray.constData();
-  int i = 0;
-  for (; charArray[i] != '\0'; i++) {
-    array[i] = charArray[i];
-  }
-  array[i] = '\0';
-}
-
-void viewerwindow::s21_help(QString line, s21_Object3D *object3D) {
-  char charArray[256] = {0};
-  s21_convertQStringToCharPointer(line, charArray);
-  s21_parseObjFile(charArray, object3D);
+  fileSave = fileName;
+  fileIsOpen = 1;
+  glWidget->fileIsOpen = 1;
+  glWidget->setArrayIndexes(controller_->getIndexes());
+  glWidget->setArrayVertex(controller_->getVertexes());
+  glWidget->initFigure();
+  glWidget->update();
+  thisFile->setText(ParsingFileName(fileName));
+  thisVertices->setText(QString::number(controller_->getVertexes().size()));
+  thisEdges->setText(QString::number(controller_->getIndexes().size()));
+  if (FileFirstTimeIsOpen == 1) refreshValue();
+  FileFirstTimeIsOpen = 1;
 }
 
 void viewerwindow::saveSettings() {
@@ -882,7 +846,8 @@ void viewerwindow::saveSettings() {
   settings->setValue("xTranslated", xTranslated->value());
   settings->setValue("yTranslated", yTranslated->value());
   settings->setValue("zTranslated", zTranslated->value());
-  settings->setValue("ratio", ratio);
+  settings->setValue("ratio", glWidget->allScale);
+  settings->setValue("angel", glWidget->angleRotate);
 
   settings->setValue("typeProjection", glWidget->typeProjection);
   settings->setValue("backgroundColorRed", glWidget->red);
@@ -915,6 +880,7 @@ void viewerwindow::loadSettings() {
     double yTranslatedValue = settings->value("yTranslated", 0).toDouble();
     double zTranslatedValue = settings->value("zTranslated", 0).toDouble();
     double ratioSave = settings->value("ratio", 0).toDouble();
+    double angleValue = settings->value("angel", 0).toDouble();
 
     int typeProjection = settings->value("typeProjection", 0).toInt();
     double backColorRed = settings->value("backgroundColorRed", 0).toDouble();
@@ -980,22 +946,15 @@ void viewerwindow::loadSettings() {
 
     s21_openFile(fileSave);
 
-    s21_RotateX(xRotateValue);
-    s21_RotateY(yRotateValue);
-    s21_RotateZ(zRotateValue);
-    s21_TranslatedX(xTranslatedValue);
-    s21_TranslatedY(yTranslatedValue);
-    s21_TranslatedZ(zTranslatedValue);
-    int count = (ratioSave - ratio) * 10;
-    int signSave = (count < 0) ? 1 : 0;
-    count = fabs(count);
-    for (int i = 0; i < count; i++) {
-      if (signSave == 1) {
-        s21_ScaledMinus();
-      } else {
-        s21_ScaledPlus();
-      }
-    }
+    glWidget->angleRotate = angleValue;
+    glWidget->xRotate = xRotateValue;
+    glWidget->yRotate = yRotateValue;
+    glWidget->zRotate = zRotateValue;
+    glWidget->xTranslate = xTranslatedValue;
+    glWidget->yTranslate = yTranslatedValue;
+    glWidget->zTranslate = zTranslatedValue;
+    glWidget->allScale = ratioSave;
+
     glWidget->update();
     if (typeProjection) s21_FrustView();
   }
@@ -1006,9 +965,11 @@ void viewerwindow::s21_Screenshot() {
   QString namePattern = "Screenshot";
   QString imageName = dialogConnectImage.getSaveFileName(
       this, tr("Save a screenshot"), namePattern, tr("image (*.jpeg *.bmp)"));
-  if (imageName != "") {
+  if (!imageName.isEmpty()) {
     QImage screenShot =
         glWidget->grabFramebuffer();  // захват текущего изображения
+    if (!imageName.contains(".jpeg") || !imageName.contains(".bmp"))
+      imageName += ".jpeg";
     screenShot.save(imageName);
   }
 }

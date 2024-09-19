@@ -22,13 +22,13 @@
 #include <QToolBar>
 #include <QVBoxLayout>
 
+#include "Controller/s21_controller.h"
 #include "gifmaker/qgifimage.h"
 #include "gifmaker/qgifimage_p.h"
+#include "observer.h"
 #include "viewer.h"
 
 extern "C" {
-#include "Backend/s21_Viewer.h"
-#include "Backend/s21_affine_transformation.h"
 #include "gifmaker/gif_hash.h"
 #include "gifmaker/gif_lib.h"
 #include "gifmaker/gif_lib_private.h"
@@ -38,7 +38,7 @@ extern "C" {
 namespace Ui {
 class viewerwindow;
 }
-
+namespace s21 {
 class viewerwindow : public QMainWindow {
   Q_OBJECT
 
@@ -46,8 +46,6 @@ class viewerwindow : public QMainWindow {
   viewerwindow(QWidget *parent = nullptr);
   ~viewerwindow();
 
-  void s21_convertQStringToCharPointer(QString str, char *array);
-  void s21_help(QString line, s21_Object3D *object3D);
   QStackedWidget *stackedWidget;
   QDockWidget *dockWidget;
   QToolBar *topToolBar;
@@ -75,8 +73,8 @@ class viewerwindow : public QMainWindow {
   double yLastValueTranslated = 0;
   double zLastValueTranslated = 0;
 
-  QPushButton *ScaledPlus;
-  QPushButton *ScaledMinus;
+  QCustomPushButton *ScaledPlus;
+  QCustomPushButton *ScaledMinus;
   double ratio = 1;
   double lastScaled = 1;
 
@@ -87,12 +85,12 @@ class viewerwindow : public QMainWindow {
   QLabel *thisVertices;
   QLabel *thisEdges;
 
-  QPushButton *OrthoViewButton;
-  QPushButton *FrustViewButton;
-  QPushButton *colorButton;
-  QPushButton *colorEdgeButton;
-  QPushButton *colorVertexButton;
-  QTextEdit *thickness;
+  QCustomPushButton *OrthoViewButton;
+  QCustomPushButton *FrustViewButton;
+  QCustomPushButton *colorButton;
+  QCustomPushButton *colorEdgeButton;
+  QCustomPushButton *colorVertexButton;
+  QLineEdit *thickness;
   QComboBox *typeEdgeComboBox;
   QPushButton *setChanges;
   QTextEdit *sizeVertex;
@@ -117,13 +115,11 @@ class viewerwindow : public QMainWindow {
 
  private:
   Ui::viewerwindow *ui;
-  s21_Object3D *object3D;
   QSettings *settings;
+  std::unique_ptr<Controller> controller_;
   int flag = 0;
 
  public slots:
-  // void s21_setGlWidget();
-  // void s21_setTextEdit();
   void s21_openFileDialog();
   void s21_RotateX(int newValue);
   void s21_RotateY(int newValue);
@@ -145,5 +141,6 @@ class viewerwindow : public QMainWindow {
   void s21_Screenshot();
   void s21_Gif();
 };
+}  // namespace s21
 
 #endif  // VIEWERWINDOW_H

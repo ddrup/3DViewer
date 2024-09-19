@@ -1,46 +1,45 @@
-CC = gcc  -g -fsanitize=address
-CFLAGS = -Wall -Wextra -Werror -std=c11
-GCOVFLAGS = -fprofile-arcs -ftest-coverage
+GCC := g++ -Werror -Wextra -Wall --std=c++17 -lstdc++ -lm
+SANITIZER :=  -fsanitize=address -fsanitize=leak -fsanitize=undefined
+SOURSE :=  My3DViewer/Backend/*.cc My3DViewer/Test/*.cc
+FLAGS_LCOV := -g -fprofile-arcs -ftest-coverage
+FLAGS_GTEST := -lgtest -lgcov -pthread
 
-OS := $(shell uname)
+all: clean install
 
-ifeq ($(OS), Darwin)
-    FLAGS = -lcheck
-else
-    FLAGS = -lcheck -lsubunit -lrt -lpthread -lm
-endif
+tests: clean
+	$(GCC) $(FLAGS_LCOV) $(SOURSE) $(FLAGS_GTEST) -o s21_test_file
+	./s21_test_file
 
-all: gcov_report install
+gcov_report: tests #--ignore-errors mismatch 
+	@lcov -t test -o rep.info -c -d . --exclude '*/usr/*' --exclude '*/12/*'
+	@genhtml -o report rep.info
+	@rm -rf gcovreport gcovreport.info *.gcda *.gcno math_test.gcda math_test.gcno
+	@open ./report/index.html
 
-test:  
-	$(CC) $(CFLAGS) My3DViewer/Backend/*.c Test_core/*.c -o s21_test $(FLAGS)
-	./s21_test
-gcov_report:    
-	$(CC) $(GCOVFLAGS) $(CFLAGS) My3DViewer/Backend/*.c Test_core/*.c -o s21_test $(FLAGS)
-	./s21_test  
-	lcov -t "s21_test" -o test.info -c -d .
-	genhtml -o report test.info
-	rm -rf gcovreport gcovreport.info *.gcda *.gcno *.dSYM *info
-	open report/index.html
 rebuild: clean all
 
 clean: 
-	rm -rf *.o s21_test s21_report *.a a.out *.gcno *.gcda s21_test.dSYM *.info report 3DViewer dist
-cf:
-	clang-format --style=Google -n $(shell find . -name '*.c') $(shell find . -name '*.h') $(shell find . -name '*.cpp')
-	clang-format --style=Google -i $(shell find . -name '*.c') $(shell find . -name '*.h') $(shell find . -name '*.cpp')
+	rm -rf *.o s21_test_file s21_report *.a a.out *.gcno *.gcda s21_test.dSYM *.info report 3DViewer dist
+
+check:
+	clang-format --style=Google -n $(shell find . -name '*.cc') $(shell find . -name '*.h') $(shell find . -name '*.cpp')
+	clang-format --style=Google -i $(shell find . -name '*.cc') $(shell find . -name '*.h') $(shell find . -name '*.cpp')
+
 install:
 	mkdir 3DViewer
 	cd 3DViewer && qmake ../My3DViewer && make
+
 open:
-	./3DViewer/My3DViewer.app/Contents/MacOS/My3DViewer
+	./3DViewer/My3DViewer
+
 uninstall:
 	rm -rf 3DViewer
+
 dvi:
 	open ../README.md
+
 dist:
 	mkdir dist
-	cp -R My3DViewer Test_core Makefile dist
+	cp -R My3DViewer Makefile dist
 	cd dist && tar cvzf 3DViewer.tgz *
 	cd dist && rm -rf *.c *.cpp *.h *.ui calc* My3DViewer Makefile Test_core
-
